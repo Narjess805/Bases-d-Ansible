@@ -1,0 +1,10 @@
+---
+- name: Déployer la stack DevOps via des rôles
+  hosts: webserver
+  become: true
+  gather_facts: true
+
+  roles:
+    - docker_portainer_install
+    - jenkins_install
+    - container_deployment

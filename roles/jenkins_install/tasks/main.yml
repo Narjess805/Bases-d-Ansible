@@ -1,0 +1,11 @@
+---
+- name: Déployer Jenkins dans un conteneur Docker
+  community.docker.docker_container:
+    name: jenkins
+    image: jenkins/jenkins:lts-jdk17
+    state: started
+    restart_policy: always
+    ports:
+      - "8085:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
