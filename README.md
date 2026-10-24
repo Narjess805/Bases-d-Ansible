@@ -1,275 +1,171 @@
-<div align="center">
+# 🚀 TP4 — Bases d'Ansible (Inventaire, Playbooks, Clés SSH, Rôles)
 
-# Mini-projet 1 : Application web à deux niveaux sur Kubernetes (K3s)
+Automatisation de l'infrastructure avec **Ansible** : configuration d'un serveur web, installation de Docker, Portainer, Jenkins et déploiement de conteneurs via des rôles réutilisables.
 
-Déploiement, exposition via Ingress, mise à jour sans coupure et diagnostic de panne
-
-![Kubernetes](https://img.shields.io/badge/Kubernetes-K3s-326CE5?logo=kubernetes&logoColor=white)
-![K3s](https://img.shields.io/badge/K3s-Lightweight-FFC61C?logo=rancher&logoColor=black)
-![Traefik](https://img.shields.io/badge/Ingress-Traefik-24A1C1?logo=traefikproxy&logoColor=white)
-![Nginx](https://img.shields.io/badge/Frontend-Nginx-009639?logo=nginx&logoColor=white)
-![Status](https://img.shields.io/badge/Statut-Termin%C3%A9-success)
-
-</div>
+**Étudiante :** Narjess Dabbech — Master DevOps & Cloud (M2) — 2026
 
 ---
 
-## Table des matières
-
-1. [Contexte et objectifs](#1-contexte-et-objectifs)
-2. [Architecture](#2-architecture)
-3. [Structure du dépôt](#3-structure-du-dépôt)
-4. [Prérequis](#4-prérequis)
-5. [Guide de déploiement](#5-guide-de-déploiement)
-6. [Preuves d'exécution](#6-preuves-dexécution)
-7. [Questions de réflexion](#7-questions-de-réflexion)
-8. [Difficultés rencontrées](#8-difficultés-rencontrées)
-9. [Nettoyage](#9-nettoyage)
-10. [Auteur](#10-auteur)
+## 📑 Sommaire
+1. [Objectifs](#1--objectifs)
+2. [Architecture](#2-️-architecture)
+3. [Environnement](#3--environnement)
+4. [Partie 1 : Inventaire et Configuration](#4--partie-1--inventaire-et-configuration)
+5. [Partie 2 : Premier Playbook (Apache)](#5--partie-2--premier-playbook-apache)
+6. [Partie 3 : Authentification par Clé SSH](#6--partie-3--authentification-par-clé-ssh)
+7. [Partie 4 & 5 : Rôles Ansible](#7--partie-4--5--rôles-ansible-docker-portainer-jenkins-nginx)
+8. [Difficultés rencontrées](#8-️-difficultés-rencontrées)
 
 ---
 
-## 1. Contexte et objectifs
+## 1. 🎯 Objectifs
+- Décrire l'architecture d'Ansible (nœud de contrôle, nœuds gérés, inventaire, modules).
+- Écrire un inventaire, un fichier `ansible.cfg` et un premier playbook idempotent.
+- Passer d'une authentification SSH par mot de passe à une authentification par clé.
+- Automatiser l'installation de Jenkins, Docker, Portainer et d'un conteneur applicatif via des rôles.
 
-Ce dépôt contient les manifestes YAML et la documentation du **Mini-projet 1**.
+## 2. 🏗️ Architecture
 
-L'objectif est de déployer une application à deux niveaux (un frontend et une API) sur un cluster Kubernetes léger (K3s) et de :
+| Rôle | Machine | IP |
+| :--- | :--- | :--- |
+| **Nœud de contrôle** | `devsecops-vm` (Ubuntu 22.04) | `192.168.56.10` |
+| **Nœud géré** | `master-2` (Ubuntu 22.04) | `192.168.56.20` |
 
-- faire communiquer les deux composants **en interne** via des Services ;
-- les **exposer à l'extérieur** grâce à un Ingress Traefik ;
-- démontrer une **mise à jour sans coupure** (Rolling Update) ;
-- réaliser un **diagnostic de panne** (`ImagePullBackOff`).
+## 3. 💻 Environnement
 
-## 2. Architecture
+- **Ansible :** core 2.17.14 (installé sur `devsecops-vm`)
+- **Python :** 3.10
+- **OS :** Ubuntu 22.04 LTS (les deux VM)
+- **Connexion :** SSH par clé ED25519 (générée sur le contrôleur)
 
-| Composant | Technologie | Réplicas | Service |
-|-----------|-------------|:--------:|---------|
-| Frontend  | Nginx       | 2        | `frontend-svc` (ClusterIP) |
-| API       | Podinfo     | 3        | `api-svc` (ClusterIP) |
-| Routage   | Ingress Traefik | n/a  | `web.k3s.local` et `api.k3s.local` |
+## 4. 🔧 Partie 1 : Inventaire et Configuration
 
-**Namespace** : `projet-narjess`
-
-```mermaid
-flowchart LR
-    U([Client]) -->|web.k3s.local| I{{Ingress Traefik}}
-    U -->|api.k3s.local| I
-    I --> FS[frontend-svc]
-    I --> AS[api-svc]
-    FS --> F1[Nginx Pod 1]
-    FS --> F2[Nginx Pod 2]
-    AS --> A1[Podinfo Pod 1]
-    AS --> A2[Podinfo Pod 2]
-    AS --> A3[Podinfo Pod 3]
-    F1 -.->|api-svc:9898| AS
-    F2 -.->|api-svc:9898| AS
-```
-
-## 3. Structure du dépôt
-
+**Structure du projet `demo1/` :**
 ```text
-.
-├── README.md                      # Documentation du projet
-├── manifests/                     # Manifestes Kubernetes
-│   ├── api-deployment.yaml        # Deployment de l'API (Podinfo)
-│   ├── frontend-deployment.yaml   # Deployment du Frontend (Nginx)
-│   ├── services.yaml              # Services ClusterIP (api-svc, frontend-svc)
-│   └── ingress.yaml               # Ingress pour l'accès externe
-└── captures/                      # Captures d'écran du projet
-    ├── 00_namespace.png
-    ├── 01_api_pods.png
-    ├── 02_frontend_pods.png
-    ├── 03_services_communication.png
-    ├── 04_ingress.png
-    ├── 05_rolling_update.png
-    ├── 06_diagnostic.png
-    └── 07_nettoyage.png
+demo1/
+├── inventory.txt
+├── ansible.cfg
+├── index.html
+├── webserver_install.yml
+├── site.yml
+├── captures/
+└── roles/
+    ├── docker_portainer_install/
+    ├── jenkins_install/
+    └── container_deployment/
 ```
 
-## 4. Prérequis
+**`inventory.txt` :**
+```ini
+[webserver]
+192.168.56.20
 
-- Un cluster **K3s** fonctionnel (au moins 1 master et 1 worker)
-- `kubectl` configuré sur votre machine
-- **Traefik** installé (inclus par défaut avec K3s)
+[nodes:children]
+webserver
 
-## 5. Guide de déploiement
+[nodes:vars]
+ansible_user=master-2
+```
 
-### 5.1 Déployer l'application
+**`ansible.cfg` :**
+```ini
+[defaults]
+inventory = ./inventory.txt
+remote_user = master-2
+host_key_checking = False
+deprecation_warnings = False
+```
 
-Depuis la racine du dépôt :
-
+**Test de connexion (ping) :**
 ```bash
-kubectl create namespace projet-narjess
-kubectl config set-context --current --namespace=projet-narjess
-kubectl apply -f manifests/
+ansible all -m ping
 ```
 
-### 5.2 Vérifier le déploiement
+![Ping Ansible](captures/ping-pong.png)
 
+## 5. 🌐 Partie 2 : Premier Playbook (Apache)
+
+`webserver_install.yml` installe Apache, crée un dossier, copie un site web et démarre le service.
+Le port est modifié sur **8081** car le port 80 est déjà utilisé par Coolify/Traefik sur `master-2`.
+
+**Exécution :**
 ```bash
-# Pods en état Running et nœuds d'exécution
-kubectl get pods -o wide
-
-# Services et endpoints associés
-kubectl get services
-kubectl get endpoints
-
-# Ingress et adresse attribuée
-kubectl get ingress
+ansible-playbook webserver_install.yml -K
 ```
 
-### 5.3 Tester l'accès externe
-
-Ajoutez l'IP du nœud master dans le fichier `hosts` de votre machine :
-
-```text
-192.168.56.20  web.k3s.local api.k3s.local
-```
-
-| Système | Emplacement du fichier `hosts` |
-|---------|--------------------------------|
-| Linux / macOS | `/etc/hosts` |
-| Windows | `C:\Windows\System32\drivers\etc\hosts` (éditeur lancé en administrateur) |
-
-Puis accédez aux applications :
-
-| Application | URL |
-|-------------|-----|
-| Frontend | http://web.k3s.local |
-| API | http://api.k3s.local |
-
+**Vérification :**
 ```bash
-curl http://web.k3s.local
-curl http://api.k3s.local
+curl http://192.168.56.20:8081
 ```
 
-### 5.4 Mise à jour sans coupure et rollback
+### Premier passage
+![Exécution du playbook Apache](captures/playbook-run.png)
 
+### Deuxième passage — Idempotence (`changed=0`)
+![Idempotence](captures/idempotence.png)
+
+## 6. 🔑 Partie 3 : Authentification par Clé SSH
+
+**Génération de la clé :**
 ```bash
-# Mise à jour de l'image (remplacer <nouveau-tag>)
-kubectl set image deployment/<nom-deployment> <conteneur>=<image>:<nouveau-tag>
-
-# Suivi de la mise à jour
-kubectl rollout status deployment/<nom-deployment>
-
-# Historique et ReplicaSets
-kubectl rollout history deployment/<nom-deployment>
-kubectl get rs
-
-# Retour arrière si nécessaire
-kubectl rollout undo deployment/<nom-deployment>
+ssh-keygen -t ed25519 -C "ansible-control"
 ```
 
-### 5.5 Diagnostic d'une panne
-
+**Copie de la clé sur le nœud géré :**
 ```bash
-kubectl get pods
-kubectl describe pod <nom-du-pod>
-kubectl get events --sort-by=.metadata.creationTimestamp
-kubectl logs <nom-du-pod>
+ssh-copy-id master-2@192.168.56.20
 ```
 
-## 6. Preuves d'exécution
+Une fois la clé en place, le playbook s'exécute sans `-k` (plus de mot de passe SSH demandé).
 
-### 6.1 Création du Namespace
+## 7. 🐳 Partie 4 & 5 : Rôles Ansible (Docker, Portainer, Jenkins, Nginx)
 
-![Création du namespace](captures/00_namespace.png)
+**`site.yml` :**
+```yaml
+---
+- name: Déployer la stack DevOps via des rôles
+  hosts: webserver
+  become: true
+  gather_facts: true
 
-### 6.2 Déploiement de l'API (3 réplicas)
+  roles:
+    - docker_portainer_install
+    - jenkins_install
+    - container_deployment
+```
 
-![Pods de l'API](captures/01_api_pods.png)
+**Rôles créés :**
 
-### 6.3 Déploiement du Frontend (2 réplicas)
+| Rôle | Description | Accès |
+| :--- | :--- | :--- |
+| `docker_portainer_install` | Installe Docker et déploie Portainer | http://192.168.56.20:9000 |
+| `jenkins_install` | Déploie Jenkins dans un conteneur Docker | http://192.168.56.20:8085 |
+| `container_deployment` | Déploie un conteneur Nginx | http://192.168.56.20:8082 |
 
-![Pods du Frontend](captures/02_frontend_pods.png)
+**Exécution :**
+```bash
+ansible-playbook site.yml -K
+```
 
-### 6.4 Communication interne (Frontend vers API)
+### Exécution des rôles
+![Exécution des rôles](captures/roles-run.png)
 
-![Communication entre services](captures/03_services_communication.png)
+### Conteneurs déployés
+![Conteneurs](captures/containers.png)
 
-### 6.5 Exposition avec Ingress
-
-![Ingress Traefik](captures/04_ingress.png)
-
-### 6.6 Mise à jour sans coupure (Rolling Update)
-
-![Rolling Update](captures/05_rolling_update.png)
-
-### 6.7 Diagnostic de panne
-
-![Diagnostic de panne](captures/06_diagnostic.png)
-
-### 6.8 Nettoyage
-
-![Nettoyage des ressources](captures/07_nettoyage.png)
-
-## 7. Questions de réflexion
-
-<details>
-<summary><strong>Étape 0 : Pourquoi isoler un projet dans un namespace ?</strong></summary>
-
-Le namespace isole les ressources (Pods, Services, etc.) afin d'éviter les conflits de noms, de faciliter la gestion des droits (RBAC) et de cibler plus simplement les commandes.
-</details>
-
-<details>
-<summary><strong>Étape 1 : Sur quels nœuds les Pods sont-ils répartis, et qui a pris cette décision ?</strong></summary>
-
-Les Pods sont répartis sur les différents nœuds (master et workers). C'est le **Scheduler** de Kubernetes qui décide, en fonction des ressources disponibles et des contraintes de placement.
-</details>
-
-<details>
-<summary><strong>Étape 2 : Que se passerait-il si les deux Deployments utilisaient exactement les mêmes labels ?</strong></summary>
-
-Les Services ne sauraient plus quels Pods cibler. Le Service `frontend-svc` pourrait envoyer du trafic vers l'API (et inversement), ce qui provoquerait un dysfonctionnement complet.
-</details>
-
-<details>
-<summary><strong>Étape 3 : Quel est le nom DNS complet d'un Service ?</strong></summary>
-
-Le FQDN a la forme `<service>.<namespace>.svc.cluster.local`.
-Exemple : `api-svc.projet-narjess.svc.cluster.local`.
-</details>
-
-<details>
-<summary><strong>Étape 4 : Pourquoi préférer un Ingress à deux Services NodePort ?</strong></summary>
-
-L'Ingress fournit un point d'entrée unique (ports 80/443) avec routage par nom d'hôte et par chemin. Avec des NodePort, il faut ouvrir un port distinct par application, ce qui est moins lisible et moins sécurisé.
-</details>
-
-<details>
-<summary><strong>Étape 5 : Combien de ReplicaSets existent après la mise à jour, et pourquoi l'ancien est-il conservé ?</strong></summary>
-
-Il y a **2 ReplicaSets** : l'ancien (0 réplica) et le nouveau (3 réplicas). L'ancien est conservé pour permettre un rollback rapide avec `kubectl rollout undo` en cas de problème.
-</details>
-
-<details>
-<summary><strong>Étape 6 : Quels symptômes ont mis sur la piste, et quelle est la cause racine ?</strong></summary>
-
-- **Symptômes** : les Pods restent en `ErrImagePull` puis `ImagePullBackOff`.
-- **Cause racine** : le tag d'image indiqué dans le manifeste n'existe pas sur le registre (GHCR), Kubernetes ne peut donc pas télécharger l'image.
-</details>
-
-## 8. Difficultés rencontrées
+## 8. 🛠️ Difficultés rencontrées
 
 | Problème | Cause | Solution |
-|----------|-------|----------|
-| Endpoints à `<none>` | Les labels du Service ne correspondent pas à ceux du Deployment | Aligner `selector` du Service et `labels` du Pod template |
-| Rolling update lent | Téléchargement des images depuis Internet | Vérifier la connectivité et préchauffer les images |
-| `hosts` non pris en compte (Windows) | Fichier édité sans droits administrateur ou enregistré avec une extension | Éditer en administrateur et enregistrer sans extension |
+| :--- | :--- | :--- |
+| `Host key verification failed` | La clé SSH de l'hôte a changé (VM recréée) | `ssh-keygen -R 192.168.56.20` puis reconnexion manuelle |
+| Conflit de clé GPG Jenkins (`NO_PUBKEY`) | Deux clés concurrentes dans `/etc/apt/keyrings` | Nettoyage des fichiers et réinstallation propre de la clé |
+| Jenkins ne démarre pas (`Start request repeated too quickly`) | Jenkins 2.479.1 exige Java 17, mais le service utilisait Java 11 | `update-alternatives --set java` puis configuration de `JAVA_HOME` |
+| Port 80 occupé par Coolify | Apache ne peut pas démarrer sur le port 80 | Modification du playbook pour utiliser le port 8081 |
+| Problème de RAM sur `master-2` | Coolify + Forgejo + Portainer + Nginx consomment beaucoup | Ajout de 4 Go de swap |
+| Jenkins bloqué sur l'installation des plugins | Timeout réseau | Installation dans un conteneur Docker (`jenkins/jenkins:lts-jdk17`) |
 
-## 9. Nettoyage
+---
 
-```bash
-kubectl delete -f manifests/
-kubectl delete namespace projet-narjess
-```
-
-## 10. Auteur
-
-| | |
-|---|---|
-| **Nom** | Dabbech |
-| **Prénom** | Narjess |
-| **Classe** | M2 DevOps |
-| **GitHub** | [@Narjess805](https://github.com/Narjess805) |
-| **Date** | Octobre 2026 |
+## 👤 Auteur
+**Narjess Dabbech** — Master DevOps & Cloud — 2026
+GitHub : [@Narjess805](https://github.com/Narjess805)
