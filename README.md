@@ -1,4 +1,4 @@
-# 🚀 TP4 — Bases d'Ansible (Inventaire, Playbooks, Clés SSH, Rôles)
+#  TP4 — Bases d'Ansible (Inventaire, Playbooks, Clés SSH, Rôles)
 
 Automatisation de l'infrastructure avec **Ansible** : configuration d'un serveur web, installation de Docker, Portainer, Jenkins et déploiement de conteneurs via des rôles réutilisables.
 
@@ -6,7 +6,7 @@ Automatisation de l'infrastructure avec **Ansible** : configuration d'un serveur
 
 ---
 
-## 📑 Sommaire
+##  Sommaire
 1. [Objectifs](#1--objectifs)
 2. [Architecture](#2-️-architecture)
 3. [Environnement](#3--environnement)
@@ -18,27 +18,27 @@ Automatisation de l'infrastructure avec **Ansible** : configuration d'un serveur
 
 ---
 
-## 1. 🎯 Objectifs
+## 1.  Objectifs
 - Décrire l'architecture d'Ansible (nœud de contrôle, nœuds gérés, inventaire, modules).
 - Écrire un inventaire, un fichier `ansible.cfg` et un premier playbook idempotent.
 - Passer d'une authentification SSH par mot de passe à une authentification par clé.
 - Automatiser l'installation de Jenkins, Docker, Portainer et d'un conteneur applicatif via des rôles.
 
-## 2. 🏗️ Architecture
+## 2.  Architecture
 
 | Rôle | Machine | IP |
 | :--- | :--- | :--- |
 | **Nœud de contrôle** | `devsecops-vm` (Ubuntu 22.04) | `192.168.56.10` |
 | **Nœud géré** | `master-2` (Ubuntu 22.04) | `192.168.56.20` |
 
-## 3. 💻 Environnement
+## 3.  Environnement
 
 - **Ansible :** core 2.17.14 (installé sur `devsecops-vm`)
 - **Python :** 3.10
 - **OS :** Ubuntu 22.04 LTS (les deux VM)
 - **Connexion :** SSH par clé ED25519 (générée sur le contrôleur)
 
-## 4. 🔧 Partie 1 : Inventaire et Configuration
+## 4.  Partie 1 : Inventaire et Configuration
 
 **Structure du projet `demo1/` :**
 ```text
@@ -83,7 +83,7 @@ ansible all -m ping
 
 ![Ping Ansible](captures/ping-pong.png)
 
-## 5. 🌐 Partie 2 : Premier Playbook (Apache)
+## 5.  Partie 2 : Premier Playbook (Apache)
 
 `webserver_install.yml` installe Apache, crée un dossier, copie un site web et démarre le service.
 Le port est modifié sur **8081** car le port 80 est déjà utilisé par Coolify/Traefik sur `master-2`.
@@ -104,7 +104,7 @@ curl http://192.168.56.20:8081
 ### Deuxième passage — Idempotence (`changed=0`)
 ![Idempotence](captures/idempotence.png)
 
-## 6. 🔑 Partie 3 : Authentification par Clé SSH
+## 6.  Partie 3 : Authentification par Clé SSH
 
 **Génération de la clé :**
 ```bash
@@ -118,7 +118,7 @@ ssh-copy-id master-2@192.168.56.20
 
 Une fois la clé en place, le playbook s'exécute sans `-k` (plus de mot de passe SSH demandé).
 
-## 7. 🐳 Partie 4 & 5 : Rôles Ansible (Docker, Portainer, Jenkins, Nginx)
+## 7.  Partie 4 & 5 : Rôles Ansible (Docker, Portainer, Jenkins, Nginx)
 
 **`site.yml` :**
 ```yaml
@@ -153,7 +153,7 @@ ansible-playbook site.yml -K
 ### Conteneurs déployés
 ![Conteneurs](captures/containers.png)
 
-## 8. 🛠️ Difficultés rencontrées
+## 8.  Difficultés rencontrées
 
 | Problème | Cause | Solution |
 | :--- | :--- | :--- |
@@ -166,6 +166,6 @@ ansible-playbook site.yml -K
 
 ---
 
-## 👤 Auteur
+##  Auteur
 **Narjess Dabbech** — Master DevOps & Cloud — 2026
 GitHub : [@Narjess805](https://github.com/Narjess805)
